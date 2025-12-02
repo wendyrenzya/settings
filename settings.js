@@ -81,51 +81,113 @@ export default {
 
         return json({ ok: true });
       }
-// ==========================
-// BONUS: STOK KELUAR (LIST FULL)
-// ==========================
-if (path === "/api/bonus/stok_keluar" && method === "GET") {
-  const rows = await env.BMT_DB
-    .prepare(`SELECT * FROM stok_keluar ORDER BY created_at DESC`)
-    .all();
 
-  return json({ items: rows.results || [] });
-}
+      // ==========================
+      // BONUS: STOK KELUAR (LIST FULL)
+      // ==========================
+      if (path === "/api/bonus/stok_keluar" && method === "GET") {
+        const rows = await env.BMT_DB
+          .prepare(`SELECT * FROM stok_keluar ORDER BY created_at DESC`)
+          .all();
 
-
-// ==========================
-// BONUS: STOK KELUAR (FILTER BY USER / DATE RANGE)
-// ==========================
-if (path === "/api/bonus/stok_keluar/filter" && method === "GET") {
-
-  const user  = url.searchParams.get("user")  || "";
-  const start = url.searchParams.get("start") || "";
-  const end   = url.searchParams.get("end")   || "";
-
-  let sql = `SELECT * FROM stok_keluar WHERE 1=1`;
-  const params = [];
-
-  if (user) {
-    sql += ` AND dibuat_oleh = ?`;
-    params.push(user);
-  }
-
-  if (start) {
-    sql += ` AND DATE(created_at) >= DATE(?)`;
-    params.push(start);
-  }
-
-  if (end) {
-    sql += ` AND DATE(created_at) <= DATE(?)`;
-    params.push(end);
-  }
-
-  sql += ` ORDER BY created_at DESC`;
-
-  const rows = await env.BMT_DB.prepare(sql).bind(...params).all();
-
-  return json({ items: rows.results || [] });
+        return json({ items: rows.results || [] });
       }
+
+      // ==========================
+      // BONUS: STOK KELUAR (FILTER BY USER / DATE RANGE)
+      // ==========================
+      if (path === "/api/bonus/stok_keluar/filter" && method === "GET") {
+
+        const user  = url.searchParams.get("user")  || "";
+        const start = url.searchParams.get("start") || "";
+        const end   = url.searchParams.get("end")   || "";
+
+        let sql = `SELECT * FROM stok_keluar WHERE 1=1`;
+        const params = [];
+
+        if (user) {
+          sql += ` AND dibuat_oleh = ?`;
+          params.push(user);
+        }
+
+        if (start) {
+          sql += ` AND DATE(created_at) >= DATE(?)`;
+          params.push(start);
+        }
+
+        if (end) {
+          sql += ` AND DATE(created_at) <= DATE(?)`;
+          params.push(end);
+        }
+
+        sql += ` ORDER BY created_at DESC`;
+
+        const rows = await env.BMT_DB.prepare(sql).bind(...params).all();
+
+        return json({ items: rows.results || [] });
+      }
+
+
+      // ==========================
+      // BONUS: RIWAYAT PER USER
+      // ==========================
+      if (path === "/api/bonus/riwayat" && method === "GET") {
+        const user = url.searchParams.get("user") || "";
+
+        const rows = await env.BMT_DB.prepare(`
+          SELECT * FROM bonus_riwayat
+          WHERE username = ?
+          ORDER BY id DESC
+        `).bind(user).all();
+
+        return json({ items: rows.results || [] });
+      }
+
+      // ==========================
+      // BONUS: CATAT ACHIEVED
+      // ==========================
+      if (path === "/api/bonus/achieved" && method === "POST") {
+        const b = await request.json();
+
+        if (!b.username || !b.tanggal || !b.nilai) {
+          return json({ error: "username, tanggal, nilai required" }, 400);
+        }
+
+        await env.BMT_DB.prepare(`
+          INSERT INTO bonus_riwayat(username, tanggal, nilai, status, created_at)
+          VALUES (?, ?, ?, ?, datetime('now'))
+        `).bind(
+          b.username,
+          b.tanggal,
+          Number(b.nilai || 0),
+          b.status || "belum"
+        ).run();
+
+        return json({ ok: true });
+      }
+
+      // ==========================
+      // BONUS: UPDATE STATUS (belum → sudah)
+      // ==========================
+      if (path === "/api/bonus/status" && method === "POST") {
+        const b = await request.json();
+
+        if (!b.id || !b.status) {
+          return json({ error: "id & status required" }, 400);
+        }
+
+        await env.BMT_DB.prepare(`
+          UPDATE bonus_riwayat
+          SET status = ?
+          WHERE id = ?
+        `).bind(b.status, b.id).run();
+
+        return json({ ok: true });
+      }
+
+      // ==========================
+      // FALLBACK
+      // ==========================
       return json({ error: "Not Found" }, 404);
 
     } catch (err) {
@@ -142,6 +204,7 @@ function cors() {
     "Content-Type": "application/json;charset=UTF-8"
   };
 }
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
