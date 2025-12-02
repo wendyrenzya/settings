@@ -81,7 +81,51 @@ export default {
 
         return json({ ok: true });
       }
+// ==========================
+// BONUS: STOK KELUAR (LIST FULL)
+// ==========================
+if (path === "/api/bonus/stok_keluar" && method === "GET") {
+  const rows = await env.BMT_DB
+    .prepare(`SELECT * FROM stok_keluar ORDER BY created_at DESC`)
+    .all();
 
+  return json({ items: rows.results || [] });
+}
+
+
+// ==========================
+// BONUS: STOK KELUAR (FILTER BY USER / DATE RANGE)
+// ==========================
+if (path === "/api/bonus/stok_keluar/filter" && method === "GET") {
+
+  const user  = url.searchParams.get("user")  || "";
+  const start = url.searchParams.get("start") || "";
+  const end   = url.searchParams.get("end")   || "";
+
+  let sql = `SELECT * FROM stok_keluar WHERE 1=1`;
+  const params = [];
+
+  if (user) {
+    sql += ` AND dibuat_oleh = ?`;
+    params.push(user);
+  }
+
+  if (start) {
+    sql += ` AND DATE(created_at) >= DATE(?)`;
+    params.push(start);
+  }
+
+  if (end) {
+    sql += ` AND DATE(created_at) <= DATE(?)`;
+    params.push(end);
+  }
+
+  sql += ` ORDER BY created_at DESC`;
+
+  const rows = await env.BMT_DB.prepare(sql).bind(...params).all();
+
+  return json({ items: rows.results || [] });
+      }
       return json({ error: "Not Found" }, 404);
 
     } catch (err) {
