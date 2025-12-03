@@ -301,6 +301,20 @@ if (path === "/api/bonus/progress" && method === "POST") {
 
   return json({ ok:true });
 }
+/* ==========================
+   LAPORAN HARIAN — LIST
+   GET /api/laporan_harian/list
+========================== */
+if (path === "/api/laporan_harian/list" && method === "GET") {
+
+  const rows = await env.BMT_DB.prepare(`
+    SELECT *
+    FROM laporan_harian
+    ORDER BY tanggal DESC
+  `).all();
+
+  return json({ items: rows.results || [] });
+}
       /* ==========================
          FALLBACK
       ========================== */
