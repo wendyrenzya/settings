@@ -9,8 +9,9 @@ export default {
     }
 
     try {
+
       // ==========================
-      // GET CUSTOM
+      // SETTINGS CUSTOM GET
       // ==========================
       if (path === "/api/settings/custom" && method === "GET") {
         const row = await env.BMT_DB
@@ -27,7 +28,7 @@ export default {
       }
 
       // ==========================
-      // POST CUSTOM
+      // SETTINGS CUSTOM POST
       // ==========================
       if (path === "/api/settings/custom" && method === "POST") {
         const b = await request.json();
@@ -46,7 +47,7 @@ export default {
       }
 
       // ==========================
-      // GET STICKY
+      // SETTINGS STICKY GET
       // ==========================
       if (path === "/api/settings/sticky" && method === "GET") {
         const row = await env.BMT_DB
@@ -63,7 +64,7 @@ export default {
       }
 
       // ==========================
-      // POST STICKY
+      // SETTINGS STICKY POST
       // ==========================
       if (path === "/api/settings/sticky" && method === "POST") {
         const b = await request.json();
@@ -171,7 +172,7 @@ export default {
       }
 
       // ==================================
-      //  KATALOG (FIXED, DI DALAM fetch)
+      //  KATALOG – CREATE (POST)
       // ==================================
       if (path === "/api/katalog" && method === "POST") {
         const b = await request.json();
@@ -188,6 +189,9 @@ export default {
         return json({ ok:true, id_katalog:id });
       }
 
+      // ==================================
+      //  KATALOG – GET BY ID
+      // ==================================
       if (path.startsWith("/api/katalog/") && method === "GET") {
         const id = path.split("/").pop();
 
@@ -201,6 +205,33 @@ export default {
         try { items = JSON.parse(row.items); } catch {}
 
         return json({ id_katalog:id, items });
+      }
+
+      // ==================================
+      //  KATALOG – LIST SEMUA (BARU)
+      // ==================================
+      if (path === "/api/katalog_list" && method === "GET") {
+        const rows = await env.BMT_DB
+          .prepare(`SELECT id_katalog, items, created_at 
+                    FROM katalog 
+                    ORDER BY created_at DESC`)
+          .all();
+
+        return json({ items: rows.results || [] });
+      }
+
+      // ==================================
+      //  KATALOG – DELETE (BARU)
+      // ==================================
+      if (path.startsWith("/api/katalog/") && method === "DELETE") {
+        const id = path.split("/").pop();
+
+        await env.BMT_DB
+          .prepare(`DELETE FROM katalog WHERE id_katalog = ?`)
+          .bind(id)
+          .run();
+
+        return json({ ok: true });
       }
 
       // ==========================
@@ -217,7 +248,7 @@ export default {
 function cors() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Content-Type": "application/json;charset=UTF-8"
   };
