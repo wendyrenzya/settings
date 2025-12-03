@@ -1,5 +1,6 @@
 export default {
   async fetch(request, env) {
+
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method.toUpperCase();
@@ -10,15 +11,15 @@ export default {
 
     try {
 
-      // ==========================
-      // SETTINGS CUSTOM GET
-      // ==========================
+      /* ==========================
+         SETTINGS CUSTOM GET
+      ========================== */
       if (path === "/api/settings/custom" && method === "GET") {
-        const row = await env.BMT_DB
-          .prepare(`SELECT value, meta_user, meta_time
-                    FROM settings
-                    WHERE key='custom_message' LIMIT 1`)
-          .first();
+        const row = await env.BMT_DB.prepare(`
+          SELECT value, meta_user, meta_time
+          FROM settings
+          WHERE key='custom_message' LIMIT 1
+        `).first();
 
         return json({
           message: row?.value || "",
@@ -27,9 +28,9 @@ export default {
         });
       }
 
-      // ==========================
-      // SETTINGS CUSTOM POST
-      // ==========================
+      /* ==========================
+         SETTINGS CUSTOM POST
+      ========================== */
       if (path === "/api/settings/custom" && method === "POST") {
         const b = await request.json();
 
@@ -46,15 +47,15 @@ export default {
         return json({ ok: true });
       }
 
-      // ==========================
-      // SETTINGS STICKY GET
-      // ==========================
+      /* ==========================
+         SETTINGS STICKY GET
+      ========================== */
       if (path === "/api/settings/sticky" && method === "GET") {
-        const row = await env.BMT_DB
-          .prepare(`SELECT value, meta_user, meta_time
-                    FROM settings
-                    WHERE key='sticky_message' LIMIT 1`)
-          .first();
+        const row = await env.BMT_DB.prepare(`
+          SELECT value, meta_user, meta_time
+          FROM settings
+          WHERE key='sticky_message' LIMIT 1
+        `).first();
 
         return json({
           message: row?.value || "",
@@ -63,9 +64,9 @@ export default {
         });
       }
 
-      // ==========================
-      // SETTINGS STICKY POST
-      // ==========================
+      /* ==========================
+         SETTINGS STICKY POST
+      ========================== */
       if (path === "/api/settings/sticky" && method === "POST") {
         const b = await request.json();
 
@@ -82,17 +83,20 @@ export default {
         return json({ ok: true });
       }
 
-      // ==========================
-      // BONUS: STOK KELUAR
-      // ==========================
+      /* ==========================
+         BONUS: STOK KELUAR LIST
+      ========================== */
       if (path === "/api/bonus/stok_keluar" && method === "GET") {
-        const rows = await env.BMT_DB
-          .prepare(`SELECT * FROM stok_keluar ORDER BY created_at DESC`)
-          .all();
+        const rows = await env.BMT_DB.prepare(`
+          SELECT * FROM stok_keluar ORDER BY created_at DESC
+        `).all();
 
         return json({ items: rows.results || [] });
       }
 
+      /* ==========================
+         BONUS FILTER
+      ========================== */
       if (path === "/api/bonus/stok_keluar/filter" && method === "GET") {
         const user  = url.searchParams.get("user")  || "";
         const start = url.searchParams.get("start") || "";
@@ -101,85 +105,95 @@ export default {
         let sql = `SELECT * FROM stok_keluar WHERE 1=1`;
         const params = [];
 
-        if (user) {
-          sql += ` AND dibuat_oleh = ?`;
-          params.push(user);
-        }
-
-        if (start) {
-          sql += ` AND DATE(created_at) >= DATE(?)`;
-          params.push(start);
-        }
-
-        if (end) {
-          sql += ` AND DATE(created_at) <= DATE(?)`;
-          params.push(end);
-        }
+        if (user) { sql += ` AND dibuat_oleh=?`; params.push(user); }
+        if (start){ sql += ` AND DATE(created_at)>=DATE(?)`; params.push(start); }
+        if (end)  { sql += ` AND DATE(created_at)<=DATE(?)`; params.push(end); }
 
         sql += ` ORDER BY created_at DESC`;
 
         const rows = await env.BMT_DB.prepare(sql).bind(...params).all();
-
         return json({ items: rows.results || [] });
       }
 
+      /* ==========================
+         BONUS RIWAYAT
+      ========================== */
       if (path === "/api/bonus/riwayat" && method === "GET") {
         const user = url.searchParams.get("user") || "";
 
         const rows = await env.BMT_DB.prepare(`
           SELECT * FROM bonus_riwayat
-          WHERE username = ?
+          WHERE username=?
           ORDER BY id DESC
         `).bind(user).all();
 
         return json({ items: rows.results || [] });
       }
 
+      /* ==========================
+         BONUS ACHIEVED POST
+      ========================== */
       if (path === "/api/bonus/achieved" && method === "POST") {
         const b = await request.json();
-
-        if (!b.username || !b.tanggal || !b.nilai) {
-          return json({ error: "username, tanggal, nilai required" }, 400);
-        }
+        if (!b.username || !b.tanggal || !b.nilai)
+          return json({ error:"username, tanggal, nilai required" }, 400);
 
         await env.BMT_DB.prepare(`
-          INSERT INTO bonus_riwayat(username, tanggal, nilai, status, created_at)
-          VALUES (?, ?, ?, ?, datetime('now'))
+          INSERT INTO bonus_riwayat(username,tanggal,nilai,status,created_at)
+          VALUES(?,?,?,?,datetime('now'))
         `).bind(
           b.username,
           b.tanggal,
-          Number(b.nilai || 0),
+          Number(b.nilai||0),
           b.status || "belum"
         ).run();
 
-        return json({ ok: true });
+        return json({ ok:true });
       }
 
+      /* ==========================
+         BONUS UPDATE STATUS
+      ========================== */
       if (path === "/api/bonus/status" && method === "POST") {
         const b = await request.json();
-
-        if (!b.id || !b.status) {
-          return json({ error: "id & status required" }, 400);
-        }
+        if (!b.id || !b.status)
+          return json({ error:"id & status required" }, 400);
 
         await env.BMT_DB.prepare(`
-          UPDATE bonus_riwayat
-          SET status = ?
-          WHERE id = ?
+          UPDATE bonus_riwayat SET status=? WHERE id=?
         `).bind(b.status, b.id).run();
 
-        return json({ ok: true });
+        return json({ ok:true });
       }
 
-      // ==================================
-      //  KATALOG – CREATE (POST)
-      // ==================================
+      /* ==========================
+         KATALOG: UPDATE NAMA
+      ========================== */
+      if (path.startsWith("/api/katalog_name/") && method === "PUT") {
+        const id = path.split("/").pop();
+        const b = await request.json();
+
+        if (!b.nama_katalog)
+          return json({ error:"nama_katalog required" }, 400);
+
+        await env.BMT_DB.prepare(`
+          UPDATE katalog SET nama_katalog=? WHERE id_katalog=?
+        `).bind(b.nama_katalog, id).run();
+
+        return json({ ok:true });
+      }
+
+      /* ==========================
+         KATALOG CREATE (WITH nama_katalog)
+      ========================== */
       if (path === "/api/katalog" && method === "POST") {
         const b = await request.json();
         if (!b || !Array.isArray(b.items))
           return json({ error:"items[] required" }, 400);
 
-        // Ambil counter ID Katalog
+        const namaK = b.nama_katalog || "Katalog Baru";
+
+        // Counter
         let counterRow = await env.BMT_DB
           .prepare(`SELECT value FROM settings WHERE key='katalog_counter' LIMIT 1`)
           .first();
@@ -187,27 +201,28 @@ export default {
         let counter = counterRow ? Number(counterRow.value) : 0;
         counter++;
 
-        // Simpan counter kembali
         await env.BMT_DB.prepare(`
-          INSERT OR REPLACE INTO settings(key, value)
-          VALUES ('katalog_counter', ?)
+          INSERT OR REPLACE INTO settings(key,value)
+          VALUES('katalog_counter',?)
         `).bind(counter).run();
 
-        // ID katalog baru
         const id = "Katalog-" + counter;
 
-        // Simpan katalog
         await env.BMT_DB.prepare(`
-          INSERT INTO katalog(id_katalog, items, created_at)
-          VALUES(?,?,datetime('now'))
-        `).bind(id, JSON.stringify(b.items)).run();
+          INSERT INTO katalog(id_katalog, items, nama_katalog, created_at)
+          VALUES(?,?,?,datetime('now'))
+        `).bind(
+          id,
+          JSON.stringify(b.items),
+          namaK
+        ).run();
 
         return json({ ok:true, id_katalog:id });
       }
 
-      // ==================================
-      //  KATALOG – GET BY ID
-      // ==================================
+      /* ==========================
+         KATALOG GET BY ID
+      ========================== */
       if (path.startsWith("/api/katalog/") && method === "GET") {
         const id = path.split("/").pop();
 
@@ -217,62 +232,65 @@ export default {
 
         if (!row) return json({ error:"not found" }, 404);
 
-        let items = [];
-        try { items = JSON.parse(row.items); } catch {}
+        let items=[];
+        try{ items = JSON.parse(row.items); } catch{}
 
-        return json({ id_katalog:id, items });
+        return json({
+          id_katalog:id,
+          nama_katalog: row.nama_katalog || "",
+          items
+        });
       }
 
-      // ==================================
-      //  KATALOG – LIST SEMUA
-      // ==================================
+      /* ==========================
+         KATALOG LIST (with nama)
+      ========================== */
       if (path === "/api/katalog_list" && method === "GET") {
-        const rows = await env.BMT_DB
-          .prepare(`SELECT id_katalog, items, created_at 
-                    FROM katalog 
-                    ORDER BY created_at DESC`)
-          .all();
+        const rows = await env.BMT_DB.prepare(`
+          SELECT id_katalog, nama_katalog, created_at
+          FROM katalog
+          ORDER BY created_at DESC
+        `).all();
 
         return json({ items: rows.results || [] });
       }
 
-      // ==================================
-      //  KATALOG – DELETE
-      // ==================================
+      /* ==========================
+         KATALOG DELETE
+      ========================== */
       if (path.startsWith("/api/katalog/") && method === "DELETE") {
         const id = path.split("/").pop();
 
-        await env.BMT_DB
-          .prepare(`DELETE FROM katalog WHERE id_katalog = ?`)
-          .bind(id)
-          .run();
+        await env.BMT_DB.prepare(`
+          DELETE FROM katalog WHERE id_katalog=?
+        `).bind(id).run();
 
-        return json({ ok: true });
+        return json({ ok:true });
       }
 
-      // ==========================
-      // FALLBACK
-      // ==========================
+      /* ==========================
+         FALLBACK
+      ========================== */
       return json({ error: "Not Found" }, 404);
 
     } catch (err) {
-      return json({ error: String(err) }, 500);
+      return json({ error:String(err) }, 500);
     }
   }
 };
 
-function cors() {
+function cors(){
   return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Content-Type": "application/json;charset=UTF-8"
+    "Access-Control-Allow-Origin":"*",
+    "Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers":"Content-Type",
+    "Content-Type":"application/json;charset=UTF-8"
   };
 }
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+function json(data, status=200){
+  return new Response(JSON.stringify(data),{
     status,
-    headers: cors()
+    headers:cors()
   });
 }
