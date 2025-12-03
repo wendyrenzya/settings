@@ -179,8 +179,24 @@ export default {
         if (!b || !Array.isArray(b.items))
           return json({ error:"items[] required" }, 400);
 
-        const id = "KTG-" + crypto.randomUUID().split("-")[0];
+        // Ambil counter ID Katalog
+        let counterRow = await env.BMT_DB
+          .prepare(`SELECT value FROM settings WHERE key='katalog_counter' LIMIT 1`)
+          .first();
 
+        let counter = counterRow ? Number(counterRow.value) : 0;
+        counter++;
+
+        // Simpan counter kembali
+        await env.BMT_DB.prepare(`
+          INSERT OR REPLACE INTO settings(key, value)
+          VALUES ('katalog_counter', ?)
+        `).bind(counter).run();
+
+        // ID katalog baru
+        const id = "Katalog-" + counter;
+
+        // Simpan katalog
         await env.BMT_DB.prepare(`
           INSERT INTO katalog(id_katalog, items, created_at)
           VALUES(?,?,datetime('now'))
@@ -201,14 +217,14 @@ export default {
 
         if (!row) return json({ error:"not found" }, 404);
 
-        let items=[];
+        let items = [];
         try { items = JSON.parse(row.items); } catch {}
 
         return json({ id_katalog:id, items });
       }
 
       // ==================================
-      //  KATALOG – LIST SEMUA (BARU)
+      //  KATALOG – LIST SEMUA
       // ==================================
       if (path === "/api/katalog_list" && method === "GET") {
         const rows = await env.BMT_DB
@@ -221,7 +237,7 @@ export default {
       }
 
       // ==================================
-      //  KATALOG – DELETE (BARU)
+      //  KATALOG – DELETE
       // ==================================
       if (path.startsWith("/api/katalog/") && method === "DELETE") {
         const id = path.split("/").pop();
