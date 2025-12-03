@@ -9,7 +9,6 @@ export default {
     }
 
     try {
-
       // ==========================
       // GET CUSTOM
       // ==========================
@@ -83,7 +82,7 @@ export default {
       }
 
       // ==========================
-      // BONUS: STOK KELUAR (LIST FULL)
+      // BONUS: STOK KELUAR
       // ==========================
       if (path === "/api/bonus/stok_keluar" && method === "GET") {
         const rows = await env.BMT_DB
@@ -93,11 +92,7 @@ export default {
         return json({ items: rows.results || [] });
       }
 
-      // ==========================
-      // BONUS: STOK KELUAR (FILTER BY USER / DATE RANGE)
-      // ==========================
       if (path === "/api/bonus/stok_keluar/filter" && method === "GET") {
-
         const user  = url.searchParams.get("user")  || "";
         const start = url.searchParams.get("start") || "";
         const end   = url.searchParams.get("end")   || "";
@@ -127,10 +122,6 @@ export default {
         return json({ items: rows.results || [] });
       }
 
-
-      // ==========================
-      // BONUS: RIWAYAT PER USER
-      // ==========================
       if (path === "/api/bonus/riwayat" && method === "GET") {
         const user = url.searchParams.get("user") || "";
 
@@ -143,9 +134,6 @@ export default {
         return json({ items: rows.results || [] });
       }
 
-      // ==========================
-      // BONUS: CATAT ACHIEVED
-      // ==========================
       if (path === "/api/bonus/achieved" && method === "POST") {
         const b = await request.json();
 
@@ -166,9 +154,6 @@ export default {
         return json({ ok: true });
       }
 
-      // ==========================
-      // BONUS: UPDATE STATUS (belum → sudah)
-      // ==========================
       if (path === "/api/bonus/status" && method === "POST") {
         const b = await request.json();
 
@@ -183,6 +168,39 @@ export default {
         `).bind(b.status, b.id).run();
 
         return json({ ok: true });
+      }
+
+      // ==================================
+      //  KATALOG (FIXED, DI DALAM fetch)
+      // ==================================
+      if (path === "/api/katalog" && method === "POST") {
+        const b = await request.json();
+        if (!b || !Array.isArray(b.items))
+          return json({ error:"items[] required" }, 400);
+
+        const id = "KTG-" + crypto.randomUUID().split("-")[0];
+
+        await env.BMT_DB.prepare(`
+          INSERT INTO katalog(id_katalog, items, created_at)
+          VALUES(?,?,datetime('now'))
+        `).bind(id, JSON.stringify(b.items)).run();
+
+        return json({ ok:true, id_katalog:id });
+      }
+
+      if (path.startsWith("/api/katalog/") && method === "GET") {
+        const id = path.split("/").pop();
+
+        const row = await env.BMT_DB.prepare(`
+          SELECT * FROM katalog WHERE id_katalog=? LIMIT 1
+        `).bind(id).first();
+
+        if (!row) return json({ error:"not found" }, 404);
+
+        let items=[];
+        try { items = JSON.parse(row.items); } catch {}
+
+        return json({ id_katalog:id, items });
       }
 
       // ==========================
@@ -210,35 +228,4 @@ function json(data, status = 200) {
     status,
     headers: cors()
   });
-}
-// ==========================
-// KATALOG
-// ==========================
-if (path === "/api/katalog" && method === "POST") {
-  const b = await request.json();
-  if (!b || !Array.isArray(b.items))
-    return json({ error:"items[] required" }, 400);
-
-  const id = "KTG-" + crypto.randomUUID().split("-")[0];
-
-  await env.BMT_DB.prepare(`
-    INSERT INTO katalog(id_katalog, items, created_at)
-    VALUES(?,?,datetime('now'))
-  `).bind(id, JSON.stringify(b.items)).run();
-
-  return json({ ok:true, id_katalog:id });
-}
-
-if (path.startsWith("/api/katalog/") && method === "GET") {
-  const id = path.split("/").pop();
-  const row = await env.BMT_DB.prepare(`
-    SELECT * FROM katalog WHERE id_katalog=? LIMIT 1
-  `).bind(id).first();
-
-  if (!row) return json({ error:"not found" }, 404);
-
-  let items=[];
-  try { items = JSON.parse(row.items); } catch {}
-
-  return json({ id_katalog:id, items });
 }
