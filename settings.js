@@ -268,6 +268,39 @@ export default {
         return json({ ok:true });
       }
 
+/* ==========================
+   BONUS PROGRESS GET
+========================== */
+if (path.startsWith("/api/bonus/progress/") && method === "GET") {
+  const username = path.split("/").pop();
+
+  const row = await env.BMT_DB.prepare(`
+    SELECT progress FROM bonus_progress
+    WHERE username=? LIMIT 1
+  `).bind(username).first();
+
+  return json({ progress: Number(row?.progress || 0) });
+}
+/* ==========================
+   BONUS PROGRESS UPDATE
+========================== */
+if (path === "/api/bonus/progress" && method === "POST") {
+  const b = await request.json();
+
+  if (!b.username)
+    return json({ error:"username required" }, 400);
+
+  const prog = Number(b.progress || 0);
+
+  await env.BMT_DB.prepare(`
+    INSERT INTO bonus_progress(username, progress, updated_at)
+    VALUES(?,?,datetime('now'))
+    ON CONFLICT(username)
+    DO UPDATE SET progress=excluded.progress, updated_at=datetime('now')
+  `).bind(b.username, prog).run();
+
+  return json({ ok:true });
+}
       /* ==========================
          FALLBACK
       ========================== */
