@@ -211,3 +211,34 @@ function json(data, status = 200) {
     headers: cors()
   });
 }
+// ==========================
+// KATALOG
+// ==========================
+if (path === "/api/katalog" && method === "POST") {
+  const b = await request.json();
+  if (!b || !Array.isArray(b.items))
+    return json({ error:"items[] required" }, 400);
+
+  const id = "KTG-" + crypto.randomUUID().split("-")[0];
+
+  await env.BMT_DB.prepare(`
+    INSERT INTO katalog(id_katalog, items, created_at)
+    VALUES(?,?,datetime('now'))
+  `).bind(id, JSON.stringify(b.items)).run();
+
+  return json({ ok:true, id_katalog:id });
+}
+
+if (path.startsWith("/api/katalog/") && method === "GET") {
+  const id = path.split("/").pop();
+  const row = await env.BMT_DB.prepare(`
+    SELECT * FROM katalog WHERE id_katalog=? LIMIT 1
+  `).bind(id).first();
+
+  if (!row) return json({ error:"not found" }, 404);
+
+  let items=[];
+  try { items = JSON.parse(row.items); } catch {}
+
+  return json({ id_katalog:id, items });
+}
