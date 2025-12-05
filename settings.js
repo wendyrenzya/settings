@@ -335,7 +335,7 @@ async function laporanHarianSave(env, request) {
     } = body;
 
     // INSERT ke DB
-    await env.DB.prepare(`
+    await env.BMT_DB.prepare(`
       INSERT INTO laporan_harian
       (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis)
       VALUES (?, ?, ?, ?, ?, ?)
