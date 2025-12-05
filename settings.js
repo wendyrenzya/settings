@@ -315,6 +315,46 @@ if (path === "/api/laporan_harian/list" && method === "GET") {
 
   return json({ items: rows.results || [] });
 }
+
+// --- SAVE LAPORAN HARIAN ---
+if (path === "/api/laporan/harian" && method === "POST") {
+  return laporanHarianSave(env, request);
+}
+
+async function laporanHarianSave(env, request) {
+  try {
+    const body = await request.json();
+
+    const {
+      tanggal,
+      penjualan_cash,
+      penjualan_transfer,
+      pengeluaran,
+      uang_angin,
+      charge_servis
+    } = body;
+
+    // INSERT ke DB
+    await env.DB.prepare(`
+      INSERT INTO laporan_harian
+      (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(
+      tanggal,
+      penjualan_cash,
+      penjualan_transfer,
+      pengeluaran,
+      uang_angin,
+      charge_servis
+    ).run();
+
+    return Response.json({ ok: true });
+  }
+  catch (e) {
+    return Response.json({ error: e.toString() }, { status: 500 });
+  }
+}
+
       /* ==========================
          FALLBACK
       ========================== */
