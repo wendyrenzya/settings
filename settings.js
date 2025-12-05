@@ -316,7 +316,9 @@ if (path === "/api/laporan_harian/list" && method === "GET") {
   return json({ items: rows.results || [] });
 }
 
-// --- SAVE LAPORAN HARIAN ---
+// ============================================================
+//  SAVE LAPORAN HARIAN
+// ============================================================
 if (path === "/api/laporan/harian" && method === "POST") {
   return laporanHarianSave(env, request);
 }
@@ -334,24 +336,30 @@ async function laporanHarianSave(env, request) {
       charge_servis
     } = body;
 
-    // INSERT ke DB
+    // Timestamp wajib karena tabel Anda punya constraint NOT NULL
+    const created_at = new Date().toISOString();
+
+    // Insert ke database
     await env.BMT_DB.prepare(`
       INSERT INTO laporan_harian
-      (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
       tanggal,
       penjualan_cash,
       penjualan_transfer,
       pengeluaran,
       uang_angin,
-      charge_servis
+      charge_servis,
+      created_at
     ).run();
 
     return Response.json({ ok: true });
-  }
-  catch (e) {
-    return Response.json({ error: e.toString() }, { status: 500 });
+  } catch (err) {
+    return Response.json(
+      { error: err.toString() },
+      { status: 500 }
+    );
   }
 }
 
