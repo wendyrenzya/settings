@@ -363,6 +363,73 @@ async function laporanHarianSave(env, request) {
   }
 }
 
+/* ==========================
+   INVOICE — CREATE
+   POST /api/invoice/create
+========================== */
+if (path === "/api/invoice/create" && method === "POST") {
+  const b = await request.json();
+
+  // Validation minimal
+  if (!b.tanggal_invoice || !b.nilai_invoice || !b.keterangan || !b.tanggal_jatuh_tempo) {
+    return json({ error: "Semua field wajib diisi" }, 400);
+  }
+
+  await env.BMT_DB.prepare(`
+    INSERT INTO invoice (tanggal_invoice, nilai_invoice, keterangan, tanggal_jatuh_tempo, status)
+    VALUES (?, ?, ?, ?, 'unpaid')
+  `)
+  .bind(
+    b.tanggal_invoice,
+    Number(b.nilai_invoice || 0),
+    b.keterangan,
+    b.tanggal_jatuh_tempo
+  )
+  .run();
+
+  return json({ ok: true });
+}
+
+
+/* ==========================
+   INVOICE — LIST
+   GET /api/invoice/list
+========================== */
+if (path === "/api/invoice/list" && method === "GET") {
+
+  const rows = await env.BMT_DB.prepare(`
+    SELECT id, tanggal_invoice, nilai_invoice, keterangan, tanggal_jatuh_tempo, status
+    FROM invoice
+    ORDER BY id DESC
+  `).all();
+
+  return json({ items: rows.results || [] });
+}
+
+
+/* ==========================
+   INVOICE — UPDATE STATUS
+   POST /api/invoice/update-status/:id
+========================== */
+if (path.startsWith("/api/invoice/update-status/") && method === "POST") {
+  const id = path.split("/").pop();
+
+  const result = await env.BMT_DB.prepare(`
+    UPDATE invoice
+    SET status='paid'
+    WHERE id=? AND status='unpaid'
+  `)
+  .bind(id)
+  .run();
+
+  // Tidak boleh toggle 2x
+  if (result.changed === 0) {
+    return json({ error: "Tidak dapat mengubah status (mungkin sudah paid)" }, 400);
+  }
+
+  return json({ ok: true });
+}
+
       /* ==========================
          FALLBACK
       ========================== */
