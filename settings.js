@@ -336,10 +336,8 @@ async function laporanHarianSave(env, request) {
       charge_servis
     } = body;
 
-    // Timestamp wajib karena tabel Anda punya constraint NOT NULL
     const created_at = new Date().toISOString();
 
-    // Insert ke database
     await env.BMT_DB.prepare(`
       INSERT INTO laporan_harian
       (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis, created_at)
@@ -354,12 +352,9 @@ async function laporanHarianSave(env, request) {
       created_at
     ).run();
 
-    return Response.json({ ok: true });
+    return json({ ok: true });
   } catch (err) {
-    return Response.json(
-      { error: err.toString() },
-      { status: 500 }
-    );
+    return json({ error: err.toString() }, 500);
   }
 }
 
