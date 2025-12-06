@@ -339,18 +339,26 @@ async function laporanHarianSave(env, request) {
     const created_at = new Date().toISOString();
 
     await env.BMT_DB.prepare(`
-      INSERT INTO laporan_harian
-      (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      tanggal,
-      penjualan_cash,
-      penjualan_transfer,
-      pengeluaran,
-      uang_angin,
-      charge_servis,
-      created_at
-    ).run();
+  INSERT INTO laporan_harian
+  (tanggal, penjualan_cash, penjualan_transfer, pengeluaran, uang_angin, charge_servis, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(tanggal)
+  DO UPDATE SET
+    penjualan_cash     = excluded.penjualan_cash,
+    penjualan_transfer = excluded.penjualan_transfer,
+    pengeluaran        = excluded.pengeluaran,
+    uang_angin         = excluded.uang_angin,
+    charge_servis      = excluded.charge_servis,
+    created_at         = excluded.created_at
+`).bind(
+  tanggal,
+  penjualan_cash,
+  penjualan_transfer,
+  pengeluaran,
+  uang_angin,
+  charge_servis,
+  created_at
+).run();
 
     return json({ ok: true });
   } catch (err) {
