@@ -435,7 +435,41 @@ if (path.startsWith("/api/invoice/update-status/") && method === "POST") {
 
   return json({ ok: true });
 }
+/* ==========================
+   AUTH — UPDATE LAST LOGIN
+   POST /api/users/last-login
+========================== */
+if (path === "/api/users/last-login" && method === "POST") {
+  const b = await request.json();
+  if (!b.username)
+    return json({ error:"username required" }, 400);
 
+  await env.BMT_DB.prepare(`
+    UPDATE users
+    SET last_login = datetime('now')
+    WHERE username = ?
+  `).bind(b.username).run();
+
+  return json({ ok:true });
+}
+/* ==========================
+   USERS — GET LAST LOGIN
+   GET /api/users/last-login/:username
+========================== */
+if (path.startsWith("/api/users/last-login/") && method === "GET") {
+  const username = path.split("/").pop();
+
+  const row = await env.BMT_DB.prepare(`
+    SELECT last_login
+    FROM users
+    WHERE username=?
+    LIMIT 1
+  `).bind(username).first();
+
+  return json({
+    last_login: row?.last_login || null
+  });
+}
       /* ==========================
          FALLBACK
       ========================== */
