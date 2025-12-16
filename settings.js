@@ -472,7 +472,7 @@ if (path.startsWith("/api/users/last-login/") && method === "GET") {
 }
 
 /* ==========================
-   RIWAYAT PREVIEW (FINAL FIX)
+   RIWAYAT PREVIEW (FINAL – MIRIP RIWAYAT LAMA)
    GET /api/riwayat_preview
 ========================== */
 if (path === "/api/riwayat_preview" && method === "GET") {
@@ -480,7 +480,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
   const limit  = Number(url.searchParams.get("limit") || 10);
   const offset = Number(url.searchParams.get("offset") || 0);
 
-  // helper ringkas angka (20K, 1.2M)
+  // helper ringkas nominal (20K, 1.2M)
   function compact(n){
     n = Number(n || 0);
     if (n >= 1000000) return (Math.round(n / 100000) / 10).toString().replace(/\.0$/,"") + "M";
@@ -488,7 +488,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     return n.toString();
   }
 
-  // 1 kartu = 1 transaksi_id
+  // ambil 1 kartu = 1 transaksi_id
   const heads = await env.BMT_DB.prepare(`
     SELECT transaksi_id, MIN(created_at) AS waktu
     FROM riwayat
@@ -518,18 +518,18 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     const dibuat_oleh =
       list.find(r => r.dibuat_oleh)?.dibuat_oleh || "Admin";
 
-    // tipe kartu (berdasarkan prefix, sama seperti riwayat lama)
+    // tipe kartu (SAMA dengan riwayat lama)
     let tipe = "penjualan";
     if (tid.startsWith("SRV-")) tipe = "servis";
     else if (tid.startsWith("MSK-")) tipe = "masuk";
     else if (tid.startsWith("AUD-")) tipe = "audit";
 
     let total = 0;
-    const preview = [];
+    let preview = [];
 
     /* ======================
        SERVIS — SUMMARY ONLY
-       (TANPA NAMA SERVIS)
+       (TIDAK ADA NAMA SERVIS / BARANG)
     ======================= */
     if (tipe === "servis") {
 
@@ -579,7 +579,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     }
 
     /* ======================
-       PENJUALAN BIASA
+       PENJUALAN BIASA — EVENT
     ======================= */
     else {
 
@@ -589,19 +589,38 @@ if (path === "/api/riwayat_preview" && method === "GET") {
       }
     }
 
+    /* ======================
+       BATASI PREVIEW (MIRIP RIWAYAT LAMA)
+       MAX 2 BARIS + "+ N item lainnya"
+       KECUALI SERVIS
+    ======================= */
+    let finalPreview = [];
+
+    if (tipe === "servis") {
+      // servis sudah ringkas, tampilkan apa adanya
+      finalPreview = preview;
+    } else {
+      const MAX = 2;
+      if (preview.length <= MAX) {
+        finalPreview = preview;
+      } else {
+        finalPreview = preview.slice(0, MAX);
+        finalPreview.push(`+ ${preview.length - MAX} item lainnya`);
+      }
+    }
+
     items.push({
       transaksi_id : tid,
       waktu        : h.waktu,
       tipe,
       dibuat_oleh,
       total,
-      preview: preview.slice(0, 3)
+      preview      : finalPreview
     });
   }
 
   return json({ items });
 }
-
       /* ==========================
          FALLBACK
       ========================== */
