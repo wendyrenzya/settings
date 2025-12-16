@@ -543,7 +543,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
       const parts = [];
       if (totalServis > 0) parts.push(`Servis ${compact(totalServis)}`);
       if (totalCharge > 0) parts.push(`Charge ${compact(totalCharge)}`);
-      if (totalBarang > 0) parts.push(`Barang ${compact(totalBarang)}`);
+      if (totalBarang > 0) parts.push(`Penjualan ${compact(totalBarang)}`);
 
       preview = [ parts.join(" • ") ];
       total = totalServis + totalCharge + totalBarang;
@@ -589,16 +589,21 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     ======================= */
     if (tipe !== "servis") {
       const MAX = 2;
-      if (preview.length > MAX) {
-        const sisa = preview.length - MAX;
-        const label =
-          tipe === "penjualan" ? `${sisa} penjualan lainnya` :
-          tipe === "masuk"     ? `${sisa} stok lainnya` :
-                                 `${sisa} audit lainnya`;
 
-        preview = preview.slice(0, MAX);
-        preview.push(`+ ${label}`);
-      }
+if (preview.length === MAX + 1) {
+  // tepat 3 item → tampilkan semua (tanpa +1 lainnya)
+  preview = preview;
+}
+else if (preview.length > MAX + 1) {
+  const sisa = preview.length - MAX;
+  const label =
+    tipe === "penjualan" ? `${sisa} penjualan lainnya` :
+    tipe === "masuk"     ? `${sisa} stok masuk lainnya` :
+                           `${sisa} audit lainnya`;
+
+  preview = preview.slice(0, MAX);
+  preview.push(`+ ${label}`);
+}
     }
 
     items.push({
