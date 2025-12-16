@@ -470,6 +470,98 @@ if (path.startsWith("/api/users/last-login/") && method === "GET") {
     last_login: row?.last_login || null
   });
 }
+
+/* ==========================
+   RIWAYAT PREVIEW (BARU)
+   GET /api/riwayat_preview
+========================== */
+if (path === "/api/riwayat_preview" && method === "GET") {
+  const limit  = Number(url.searchParams.get("limit") || 10);
+  const offset = Number(url.searchParams.get("offset") || 0);
+
+  // 1. Ambil daftar transaksi (sama seperti /api/riwayat)
+  const heads = await env.BMT_DB.prepare(`
+    SELECT transaksi_id, MIN(created_at) AS waktu
+    FROM riwayat
+    GROUP BY transaksi_id
+    ORDER BY waktu DESC
+    LIMIT ? OFFSET ?
+  `).bind(limit, offset).all();
+
+  const items = [];
+
+  for (const h of (heads.results || [])) {
+    const tid = h.transaksi_id;
+
+    // 2. Ambil semua baris riwayat transaksi ini
+    const rows = await env.BMT_DB.prepare(`
+      SELECT *
+      FROM riwayat
+      WHERE transaksi_id=?
+      ORDER BY created_at ASC
+    `).bind(tid).all();
+
+    const list = rows.results || [];
+
+    // creator
+    const dibuat_oleh =
+      list.find(x => x.dibuat_oleh)?.dibuat_oleh || "Admin";
+
+    // klasifikasi tipe
+    let tipe = "penjualan";
+    if (tid.startsWith("SRV-")) tipe = "servis";
+    else if (tid.startsWith("AUD-")) tipe = "audit";
+    else if (tid.startsWith("MSK-")) tipe = "masuk";
+
+    // hitung total & ringkasan
+    let total = 0;
+    let summary = [];
+
+    for (const r of list) {
+      if (r.tipe === "audit") {
+        summary.push(
+          `${r.barang_nama}: ${r.stok_lama} → ${r.stok_baru}`
+        );
+        continue;
+      }
+
+      if (r.harga && r.jumlah) {
+        total += Number(r.harga) * Number(r.jumlah);
+        summary.push(
+          `${r.jumlah}× ${r.barang_nama}`
+        );
+      }
+    }
+
+    // servis & charge (berdasarkan tabel riwayat, BUKAN servis list)
+    if (tipe === "servis") {
+      const biayaServis = list
+        .filter(x => x.tipe === "servis")
+        .reduce((a,b)=>a+Number(b.harga||0),0);
+
+      const charge = list
+        .filter(x => x.tipe === "charge")
+        .reduce((a,b)=>a+Number(b.harga||0),0);
+
+      total = biayaServis + charge;
+      summary = [];
+      if (biayaServis) summary.push(`Servis ${biayaServis}`);
+      if (charge) summary.push(`Charge ${charge}`);
+    }
+
+    items.push({
+      transaksi_id: tid,
+      waktu: h.waktu,
+      tipe,
+      dibuat_oleh,
+      total,
+      preview: summary.slice(0,3)
+    });
+  }
+
+  return json({ items });
+}
+
       /* ==========================
          FALLBACK
       ========================== */
