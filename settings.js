@@ -472,14 +472,14 @@ if (path.startsWith("/api/users/last-login/") && method === "GET") {
 }
 
 /* ==========================
-   RIWAYAT PREVIEW (BARU)
+   RIWAYAT PREVIEW (FINAL)
    GET /api/riwayat_preview
 ========================== */
 if (path === "/api/riwayat_preview" && method === "GET") {
   const limit  = Number(url.searchParams.get("limit") || 10);
   const offset = Number(url.searchParams.get("offset") || 0);
 
-  // 1. Ambil daftar transaksi (sama seperti /api/riwayat)
+  // 1. Ambil transaksi unik (1 kartu = 1 transaksi_id)
   const heads = await env.BMT_DB.prepare(`
     SELECT transaksi_id, MIN(created_at) AS waktu
     FROM riwayat
@@ -493,7 +493,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
   for (const h of (heads.results || [])) {
     const tid = h.transaksi_id;
 
-    // 2. Ambil semua baris riwayat transaksi ini
+    // 2. Ambil semua baris riwayat untuk transaksi ini
     const rows = await env.BMT_DB.prepare(`
       SELECT *
       FROM riwayat
@@ -503,50 +503,59 @@ if (path === "/api/riwayat_preview" && method === "GET") {
 
     const list = rows.results || [];
 
-    // creator
+    if (!list.length) continue;
+
+    // pembuat (ambil pertama yang ada)
     const dibuat_oleh =
       list.find(x => x.dibuat_oleh)?.dibuat_oleh || "Admin";
 
-    // klasifikasi tipe
+    // tipe kartu (berdasarkan prefix ID, SAMA seperti frontend lama)
     let tipe = "penjualan";
     if (tid.startsWith("SRV-")) tipe = "servis";
     else if (tid.startsWith("AUD-")) tipe = "audit";
     else if (tid.startsWith("MSK-")) tipe = "masuk";
 
-    // hitung total & ringkasan
     let total = 0;
-    let summary = [];
+    const preview = [];
 
-    for (const r of list) {
-      if (r.tipe === "audit") {
-        summary.push(
-          `${r.barang_nama}: ${r.stok_lama} → ${r.stok_baru}`
-        );
-        continue;
-      }
-
-      if (r.harga && r.jumlah) {
-        total += Number(r.harga) * Number(r.jumlah);
-        summary.push(
-          `${r.jumlah}× ${r.barang_nama}`
-        );
-      }
+    // === SERVIS ===
+    const servisRows = list.filter(x => x.tipe === "servis");
+    const totalServis = servisRows.reduce(
+      (a,b)=>a+Number(b.harga||0), 0
+    );
+    if (totalServis > 0) {
+      preview.push(`Servis ${totalServis}`);
+      total += totalServis;
     }
 
-    // servis & charge (berdasarkan tabel riwayat, BUKAN servis list)
-    if (tipe === "servis") {
-      const biayaServis = list
-        .filter(x => x.tipe === "servis")
-        .reduce((a,b)=>a+Number(b.harga||0),0);
+    // === CHARGE ===
+    const chargeRows = list.filter(x => x.tipe === "charge");
+    const totalCharge = chargeRows.reduce(
+      (a,b)=>a+Number(b.harga||0), 0
+    );
+    if (totalCharge > 0) {
+      preview.push(`Charge ${totalCharge}`);
+      total += totalCharge;
+    }
 
-      const charge = list
-        .filter(x => x.tipe === "charge")
-        .reduce((a,b)=>a+Number(b.harga||0),0);
+    // === BARANG / PENJUALAN ===
+    const barangRows = list.filter(x => x.tipe === "keluar");
+    const totalBarang = barangRows.reduce(
+      (a,b)=>a + (Number(b.jumlah||0) * Number(b.harga||0)), 0
+    );
+    if (totalBarang > 0) {
+      preview.push(`Barang ${totalBarang}`);
+      total += totalBarang;
+    }
 
-      total = biayaServis + charge;
-      summary = [];
-      if (biayaServis) summary.push(`Servis ${biayaServis}`);
-      if (charge) summary.push(`Charge ${charge}`);
+    // === AUDIT (KHUSUS) ===
+    if (tipe === "audit") {
+      preview.length = 0;
+      for (const r of list) {
+        preview.push(
+          `${r.barang_nama}: ${r.stok_lama} → ${r.stok_baru}`
+        );
+      }
     }
 
     items.push({
@@ -555,7 +564,7 @@ if (path === "/api/riwayat_preview" && method === "GET") {
       tipe,
       dibuat_oleh,
       total,
-      preview: summary.slice(0,3)
+      preview: preview.slice(0,3)
     });
   }
 
