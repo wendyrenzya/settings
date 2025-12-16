@@ -471,8 +471,9 @@ if (path.startsWith("/api/users/last-login/") && method === "GET") {
   });
 }
 
+
 /* ==========================
-   RIWAYAT PREVIEW (FINAL – MIRIP RIWAYAT LAMA)
+   RIWAYAT PREVIEW (FINAL BENAR)
    GET /api/riwayat_preview
 ========================== */
 if (path === "/api/riwayat_preview" && method === "GET") {
@@ -480,7 +481,6 @@ if (path === "/api/riwayat_preview" && method === "GET") {
   const limit  = Number(url.searchParams.get("limit") || 10);
   const offset = Number(url.searchParams.get("offset") || 0);
 
-  // helper ringkas nominal (20K, 1.2M)
   function compact(n){
     n = Number(n || 0);
     if (n >= 1000000) return (Math.round(n / 100000) / 10).toString().replace(/\.0$/,"") + "M";
@@ -488,7 +488,6 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     return n.toString();
   }
 
-  // ambil 1 kartu = 1 transaksi_id
   const heads = await env.BMT_DB.prepare(`
     SELECT transaksi_id, MIN(created_at) AS waktu
     FROM riwayat
@@ -503,7 +502,6 @@ if (path === "/api/riwayat_preview" && method === "GET") {
 
     const tid = h.transaksi_id;
 
-    // semua baris riwayat untuk transaksi ini
     const rows = await env.BMT_DB.prepare(`
       SELECT *
       FROM riwayat
@@ -514,22 +512,19 @@ if (path === "/api/riwayat_preview" && method === "GET") {
     const list = rows.results || [];
     if (!list.length) continue;
 
-    // pembuat
     const dibuat_oleh =
       list.find(r => r.dibuat_oleh)?.dibuat_oleh || "Admin";
 
-    // tipe kartu (SAMA dengan riwayat lama)
     let tipe = "penjualan";
     if (tid.startsWith("SRV-")) tipe = "servis";
     else if (tid.startsWith("MSK-")) tipe = "masuk";
     else if (tid.startsWith("AUD-")) tipe = "audit";
 
-    let total = 0;
+    let total = null;
     let preview = [];
 
     /* ======================
-       SERVIS — SUMMARY ONLY
-       (TIDAK ADA NAMA SERVIS / BARANG)
+       SERVIS — 1 BARIS SUMMARY
     ======================= */
     if (tipe === "servis") {
 
@@ -543,17 +538,19 @@ if (path === "/api/riwayat_preview" && method === "GET") {
 
       const totalBarang = list
         .filter(r => r.tipe === "keluar")
-        .reduce((a,b)=>a + (Number(b.harga || 0) * Number(b.jumlah || 0)), 0);
+        .reduce((a,b)=>a + (Number(b.harga||0) * Number(b.jumlah||0)), 0);
 
-      if (totalServis > 0) preview.push(`Servis ${compact(totalServis)}`);
-      if (totalCharge > 0) preview.push(`Charge ${compact(totalCharge)}`);
-      if (totalBarang > 0) preview.push(`Barang ${compact(totalBarang)}`);
+      const parts = [];
+      if (totalServis > 0) parts.push(`Servis ${compact(totalServis)}`);
+      if (totalCharge > 0) parts.push(`Charge ${compact(totalCharge)}`);
+      if (totalBarang > 0) parts.push(`Barang ${compact(totalBarang)}`);
 
+      preview = [ parts.join(" • ") ];
       total = totalServis + totalCharge + totalBarang;
     }
 
     /* ======================
-       STOK MASUK — EVENT
+       STOK MASUK
     ======================= */
     else if (tipe === "masuk") {
 
@@ -561,51 +558,46 @@ if (path === "/api/riwayat_preview" && method === "GET") {
         preview.push(`${r.jumlah}× ${r.barang_nama}`);
       }
 
-      total = 0;
+      total = null;
     }
 
     /* ======================
-       AUDIT — EVENT
+       AUDIT
     ======================= */
     else if (tipe === "audit") {
 
       for (const r of list) {
-        preview.push(
-          `${r.barang_nama}: ${r.stok_lama} → ${r.stok_baru}`
-        );
+        preview.push(`${r.barang_nama}: ${r.stok_lama} → ${r.stok_baru}`);
       }
 
-      total = 0;
+      total = null;
     }
 
     /* ======================
-       PENJUALAN BIASA — EVENT
+       PENJUALAN
     ======================= */
     else {
 
       for (const r of list) {
         preview.push(`${r.jumlah}× ${r.barang_nama}`);
-        total += Number(r.harga || 0) * Number(r.jumlah || 0);
+        total = (total || 0) + (Number(r.harga||0) * Number(r.jumlah||0));
       }
     }
 
     /* ======================
-       BATASI PREVIEW (MIRIP RIWAYAT LAMA)
-       MAX 2 BARIS + "+ N item lainnya"
-       KECUALI SERVIS
+       BATAS PREVIEW (NON SERVIS)
     ======================= */
-    let finalPreview = [];
-
-    if (tipe === "servis") {
-      // servis sudah ringkas, tampilkan apa adanya
-      finalPreview = preview;
-    } else {
+    if (tipe !== "servis") {
       const MAX = 2;
-      if (preview.length <= MAX) {
-        finalPreview = preview;
-      } else {
-        finalPreview = preview.slice(0, MAX);
-        finalPreview.push(`+ ${preview.length - MAX} item lainnya`);
+      if (preview.length > MAX) {
+        const sisa = preview.length - MAX;
+        const label =
+          tipe === "penjualan" ? `${sisa} penjualan lainnya` :
+          tipe === "masuk"     ? `${sisa} stok lainnya` :
+                                 `${sisa} audit lainnya`;
+
+        preview = preview.slice(0, MAX);
+        preview.push(`+ ${label}`);
       }
     }
 
@@ -614,8 +606,8 @@ if (path === "/api/riwayat_preview" && method === "GET") {
       waktu        : h.waktu,
       tipe,
       dibuat_oleh,
-      total,
-      preview      : finalPreview
+      total,          // NULL → frontend tidak tampil Rp 0
+      preview
     });
   }
 
